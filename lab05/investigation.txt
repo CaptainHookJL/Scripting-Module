@@ -1,0 +1,16 @@
+1. Lab 4 report comparison
+
+The automated report should be compared with the original Lab 4 report using diff.
+Any differences should be checked against the actual files in the case directory.
+The automated version is generally more reliable because the counts are generated directly by commands rather than being copied manually.
+
+2. Using the script on a new collection
+
+If a new collection was provided, I would only need to change the CASE_DIR variable so it points to the new folder.
+
+With the Lab 4 manual approach, I would have to run all of the commands again individually and rebuild the report by hand.
+
+3. suspicious.dat
+
+The report can identify the real file type of suspicious.dat using the file command.
+This gives information about the contents that cannot be determined reliably from the .dat filename alone.

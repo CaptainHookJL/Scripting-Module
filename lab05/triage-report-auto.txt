@@ -1,0 +1,36 @@
+TRIAGE REPORT
+Analyst: eve
+Case Reference: 5
+Date: Mon Oct  5 11:10:51 UTC 2026
+
+Total Files: 48
+Total Directories: 18
+Python Files: 4
+Shell Scripts: 2
+Log Files: 8
+Configuration Files: 6
+Empty Files: 2
+Archives: 2
+
+Files containing admin:
+case/evidence/notes.txt
+case/backups/users.old
+case/lab04/evidence/notes.txt
+case/lab04/backups/users.old
+case/lab04/triage-report.txt
+case/lab04/logs/auth.log
+case/lab04/logs/access.log
+case/triage-report.txt
+case/logs/auth.log
+case/logs/access.log
+
+Evidence file types:
+case/evidence/archive.zip:    Zip archive data, at least v2.0 to extract, compression method=deflate
+case/evidence/empty.bin:      empty
+case/evidence/image.png:      PNG image data, 1 x 1, 8-bit/color RGBA, non-interlaced
+case/evidence/notes.txt:      ASCII text
+case/evidence/passwords.txt:  ASCII text
+case/evidence/readme.md:      ASCII text
+case/evidence/suspicious.dat: ELF, unknown class 154
+
+Scripts (Python + shell): 6

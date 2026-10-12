@@ -1,0 +1,93 @@
+Layout and implementation
+=========================
+The worksheet names lab04-data and lab03-data. This checkout instead uses lab04 and root-level auth.log/access.log. case is an unchanged copy of lab04; intel is copied from root iocs.txt/users.csv. Server paths below are ../auth.log and ../access.log. Original fixtures were not modified. Scripts are executable. search.sh validates exactly two arguments; unquoted multiword keywords are rejected rather than silently truncated. attacker_report.sh handles invalid-user records correctly and reuses top3.sh. Source-IP ranking counts events, not proof of a particular human identity.
+
+Exercise 1
+==========
+WEB_LINES=80. BLOCK decisions=3. Most common collected source: 203.0.113.10.
+wc -l file prints count plus filename; wc -l < file prints only the count because stdin has no filename. Quoted TOP_ATTACKERS preserves three lines and their leading spacing; unquoted expansion collapses whitespace into one line.
+Single echo: echo "$(grep -c sqlmap case/logs/access.log) sqlmap requests ($(( $(grep -c sqlmap case/logs/access.log) * 100 / $(wc -l < case/logs/access.log) ))% of requests)"
+Observed: 22 requests, 27% (integer arithmetic truncates).
+
+Exercise 2
+==========
+With arguments one two three, $3 is three and $# is 3. With none, $1 is empty and $# is 0. Check $# to avoid absent inputs or incorrect paths.
+Wildcard result:
+Script name    : ./args_demo.sh
+First argument : case/backups
+Second argument: case/config-changes.txt
+Third argument : case/config-new.txt
+All arguments  : case/backups case/config-changes.txt case/config-new.txt case/config-old.txt case/configs case/docs case/evidence case/logs case/nested case/scripts case/triage-report.txt
+Argument count : 11
+case/* expands to each immediate non-hidden entry, including directories; nested entries are not separate arguments.
+Quoted "Accepted password" is one keyword; without quotes it becomes two words. The original sample searches only Accepted and ignores password; this completed search.sh returns usage exit 2.
+All three logs were searched for 203.0.113.200: {'auth.log': 5, 'firewall.log': 1, 'access.log': 0}.
+
+Exercise 3
+==========
+check_file.sh from case exits 1: its relative path becomes case/case/logs/auth.log. Distinct codes allow callers to distinguish failure reasons without parsing prose. validate_file codes: no argument=1, missing=2, empty=4, readable nonempty=0; unreadable=3 was also tested using a temporary mode-000 file. 2> redirects stderr to a file, independently of stdout.
+Backup versus live config:
+--- case/backups/config.old	2026-10-12 08:32:35.482280341 +0000
++++ case/configs/app.conf	2026-10-12 08:32:35.482318618 +0000
+@@ -1,3 +1,3 @@
+-port=80
+-debug=true
+-timeout=30
++debug=false
++port=8080
++log_level=info
+
+diff exit code: 1 (0 = identical, 1 = drift, 2 = error)
+Changes: port 80 -> 8080; debug true -> false; timeout=30 removed; log_level=info added. Debug disabling most directly reduces exposure of diagnostic information; port changes and the missing explicit timeout also deserve policy review.
+Chain: ./config_drift.sh case/config-old.txt case/config-new.txt > /dev/null && echo "NO DRIFT" || echo "DRIFT DETECTED"
+Identical files print NO DRIFT; different files print DRIFT DETECTED. This simple chain also labels diff errors as drift; production code should distinguish exit 2.
+
+Exercise 4
+==========
+CSV and IOC files work: generic line/word/byte/first/last statistics apply to any text; failed-login counts are only meaningful for SSH logs. The first if checks argument count before accessing $1; the second checks file existence. Quoting protects paths containing spaces and prevents wildcard expansion. Firewall reports 0 Failed password events, correctly: BLOCK decisions are not SSH authentication messages.
+File                      Lines   Failed logins   First timestamp     Last timestamp
+case/logs/auth.log           60              45 Sep 20 08:00:20     Sep 20 08:46:20
+../auth.log                 184             124 Sep 20 08:00:20     Sep 20 10:05:52
+The collected log is only the initial segment of the server log, so it is not representative of the complete incident.
+
+Exercise 5
+==========
+Log file        : case/logs/access.log
+Total lines     : 80
+Total words     : 960
+Total characters: 7915
+First line      : 203.0.113.10 - - [20/Sep/2026:08:00:13 +0100] "GET /assets/app.js HTTP/1.1" 200 4754 "-" "Mozilla/5.0"
+Last line       : 198.51.100.24 - - [20/Sep/2026:08:40:51 +0100] "GET /login HTTP/1.1" 200 7488 "-" "Mozilla/5.0"
+Longest line    : 112 characters
+Failed logins   : 0
+grep exit code: 0
+Lines containing 'sqlmap': 22
+Replacing -n with -z searches only when the keyword is empty and skips nonempty keywords; an empty grep expression matches every line. grep -c returns 1 for no matches although it prints the valid count 0. The completed script saves $? immediately, reports it, and prints No matches found. on zero; real grep errors propagate nonzero. Keyword input is a grep regular expression.
+
+Exercise 6
+==========
+Reproduced unquoted multiline expansion in a temporary Bash command: one/two/three become separate words; echo would print them on one line. Reproduced a failing command substitution followed by echo: grep reports a missing file but the final echo makes the shell return 0. Fix by quoting expansions and capturing/checking the status immediately. Fixed buggy.sh emits its error on stderr and exits 1; the requested &&/|| chain printed failed. logstats.sh also checks read failures and grep errors (invalid regex tested, exit 2). Zero matches is a successful analysis with grep status 1, not a script error.
+
+Investigation challenge
+=======================
+Collected ranking: [('203.0.113.10', 15), ('198.51.100.24', 14), ('198.51.100.77', 8), ('203.0.113.200', 5), ('203.0.113.15', 3)]
+Server ranking: [('203.0.113.10', 51), ('198.51.100.24', 37), ('198.51.100.77', 15), ('203.0.113.15', 11), ('203.0.113.200', 10)]
+Same top attacker: True. For these actual fixtures the collected log gives the correct top source and top-three order, but understates event counts and omits later activity. This differs from the ranking-change implication in the worksheet.
+Complete correctly parsed targeted usernames: [('admin', 39), ('root', 35), ('guest', 18), ('test', 13), ('backup', 13), ('oracle', 5), ('postgres', 1)]
+Naive next-word-after-for usernames: [('admin', 39), ('root', 35), ('guest', 18), ('test', 13), ('backup', 13), ('oracle', 5), ('invalid', 1)]
+Invalid-user line(s):
+Sep 20 09:12:10 server sshd[2002]: Failed password for invalid user postgres from 203.0.113.10 port 51234 ssh2
+The naive pipeline counts invalid as a username because it reads the word after for in "for invalid user NAME". The completed report skips invalid user and extracts NAME.
+Web log: zero Failed password events, no attacker or targeted usernames; correct for this SSH metric but not meaningful web-threat analysis. A web report should group request source addresses, status codes, paths and suspicious user agents such as sqlmap.
+Firewall BLOCK records:
+ALLOW 192.168.1.20 -> 10.0.0.10:443
+BLOCK 203.0.113.10 -> 10.0.0.10:22
+ALLOW 192.168.1.35 -> 10.0.0.20:80
+BLOCK 198.51.100.24 -> 10.0.0.10:22
+BLOCK 203.0.113.200 -> 10.0.0.30:3389
+
+Possible explanations for blocked SSH sources still appearing in auth.log: (1) authentication events occurred before a block was introduced or on a connection already established; (2) collected firewall and SSH records refer to different hosts/interfaces or traffic paths. The firewall fixture lacks timestamps, so neither hypothesis can be proven from these files.
+
+Validation
+==========
+70 subprocess checks completed, including syntax, report generation, no/multiple arguments, missing/unreadable/empty files, paths with spaces, match/no-match/invalid-regex handling, cwd-dependent failure, diff exit codes, and fixed buggy.sh. No existing fixture was edited. GitHub push was not performed.

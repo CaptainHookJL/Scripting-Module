@@ -1,0 +1,7 @@
+Log file: case/logs/access.log
+Failed password events: 0
+Top attacker: None
+Top 3 failed-login sources:
+None
+Top 3 targeted usernames:
+None

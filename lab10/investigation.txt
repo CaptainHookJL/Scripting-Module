@@ -1,0 +1,197 @@
+Layout, usage and interpretation
+================================
+Run the scripts from lab10. The original worksheet is lab10.md in this folder. Its lab04-data/lab03-data directories correspond to lab04 and root iocs.txt/users.csv in this repository. case and intel are unchanged copies; no collected script or executable was run. The nine exercise scripts share lib/common.sh for input/search checks.
+read_csv.sh accepts all (default), disabled or security; find_first.sh optionally accepts a logfile; admin_files.sh optionally accepts a keyword (default admin, or password for Exercise 4.5). check_iocs.sh takes one logfile. Other scripts take no arguments.
+scan_all.sh exits 0 for no configured-IOC matches, 1 for an investigation signal, and 2 for an input/search failure. Thus exit 1 in the saved scan is an expected finding, not an execution failure. No matches against a supplied IOC list is not proof a collection is safe. The count is matching indicator entries per log, capped at three per log; repeated list entries would be counted separately. The script waits for the find producer too, so inaccessible traversal is an error rather than a misleading clean scan.
+
+Exercise 1 and Parts 2-3: why line-by-line reading matters
+==========================================================
+Unsafe loop on test_indicators.txt:
+Indicator: [suspicious]
+Indicator: [domain.example]
+Part 2 word splitting:
+Item: [one]
+Item: [two]
+Item: [three]
+Item: [single-word-entry]
+Safe line-by-line reading:
+Line: [one two three]
+Line: [single-word-entry]
+Command substitution removes trailing newlines, then unquoted expansion splits on whitespace and can expand globs; a line containing spaces stops being one record. The safe while loop processes one record at a time and preserves spaces/backslashes. Temporary demonstration files were deleted.
+
+
+Exercise 2: safe IOC reading, CSV and firewall fields
+=====================================================
+$ ./check_iocs.sh case/logs/auth.log
+MATCH: 203.0.113.10
+MATCH: 198.51.100.24
+MATCH: 203.0.113.200
+Total IOC matches in case/logs/auth.log: 3
+Indicators not found: 4
+Exit code: 0
+$ ./check_iocs.sh case/logs/access.log
+MATCH: 203.0.113.10
+MATCH: 198.51.100.24
+Total IOC matches in case/logs/access.log: 2
+Indicators not found: 5
+Exit code: 0
+$ ./check_iocs.sh case/logs/firewall.log
+MATCH: 203.0.113.10
+MATCH: 198.51.100.24
+MATCH: 203.0.113.200
+Total IOC matches in case/logs/firewall.log: 3
+Indicators not found: 4
+Exit code: 0
+$ ./read_csv.sh
+User: alice | role: student | status: active | dept: [Computing]
+User: bob | role: student | status: active | dept: [Computing]
+User: charlie | role: staff | status: active | dept: [IT]
+User: david | role: student | status: disabled | dept: [Computing]
+User: eve | role: staff | status: active | dept: [Security]
+User: frank | role: student | status: disabled | dept: [Computing]
+User: grace | role: contractor | status: active | dept: [Facilities]
+User: heidi | role: staff | status: disabled | dept: [Finance]
+Exit code: 0
+$ ./read_csv.sh disabled
+User: david | role: student | status: disabled | dept: [Computing]
+User: frank | role: student | status: disabled | dept: [Computing]
+User: heidi | role: staff | status: disabled | dept: [Finance]
+Exit code: 0
+$ ./read_csv.sh security
+User: eve | role: staff | status: active | dept: [Security]
+Exit code: 0
+The CSV header is skipped; disabled accounts are david, frank and heidi. eve is the Security account. Removing the CR-stripping statement makes the Security filter return no records because the last field is Security\r, not Security. The file uses Windows CRLF on all nine records. This is simple unquoted CSV field splitting; quoted fields containing commas would require a CSV parser.
+$ ./read_firewall.sh
+BLOCK from 203.0.113.10 to port 22
+BLOCK from 198.51.100.24 to port 22
+BLOCK from 203.0.113.200 to port 3389
+Blocked records per destination port:
+  port 22: 2
+  port 80: 0
+  port 443: 0
+  port 3389: 1
+Total BLOCK records: 3
+Exit code: 0
+Firewall parsing intentionally uses the default whitespace IFS: ACTION, source, arrow and destination are separate fields. With IFS= the entire line lands in ACTION and the other fields are empty:
+ACTION=[BLOCK 203.0.113.10 -> 10.0.0.10:22] SRC=[] ARROW=[] DST=[]
+The final script prints BLOCK records only and reports two blocks for port 22, one for 3389, and zero for 80/443. These are logged decisions, not proof every connection from those addresses was blocked.
+
+
+Exercise 3: condition-driven loops, break and retries
+=====================================================
+Counting loop using -le:
+still scanning... (pass 1)
+still scanning... (pass 2)
+still scanning... (pass 3)
+still scanning... (pass 4)
+still scanning... (pass 5)
+scan complete
+Counting loop using -lt:
+still scanning... (pass 1)
+still scanning... (pass 2)
+still scanning... (pass 3)
+still scanning... (pass 4)
+scan complete
+$ ./find_first.sh case/logs/auth.log
+First match in case/logs/auth.log: 203.0.113.10 — stopping search.
+Search finished.
+Exit code: 0
+$ ./find_first.sh case/logs/access.log
+First match in case/logs/access.log: 203.0.113.10 — stopping search.
+Search finished.
+Exit code: 0
+$ ./find_first.sh case/logs/firewall.log
+First match in case/logs/firewall.log: 203.0.113.10 — stopping search.
+Search finished.
+Exit code: 0
+$ ./find_first.sh case/nested/archive/old.log
+No IOC matches found in case/nested/archive/old.log.
+Search finished.
+Exit code: 0
+The archived old.log has no IOC match. The original sample would print only Search finished.; the improved script uses FOUND to print an explicit no-match result. find_first.sh returns 0 for a completed search whether or not it found an IOC; scan_all.sh carries the collection-level decision code.
+$ ./retry_limit.sh [stdin: 'evidence/suspicious.dat\n']
+case/evidence/suspicious.dat: ELF, unknown class 154
+Exit code: 0
+$ ./retry_limit.sh [stdin: 'wrong-one\nwrong-two\nwrong-three\n']
+  case/wrong-one is not a readable regular file inside case/ (1/3 attempts used)
+  case/wrong-two is not a readable regular file inside case/ (2/3 attempts used)
+  case/wrong-three is not a readable regular file inside case/ (3/3 attempts used)
+stderr: Too many failed attempts.
+Exit code: 1
+$ ./retry_limit.sh [stdin: 'logs\nevidence/image.png\n']
+  case/logs is not a readable regular file inside case/ (1/3 attempts used)
+case/evidence/image.png: PNG image data, 1 x 1, 8-bit/color RGBA, non-interlaced
+Exit code: 0
+The -f test rejects logs because it is a directory. The final script also checks readability and resolves the path to keep it inside case/, rejects traversal/symlink escapes, allows success on the third attempt, and stops on EOF rather than spinning. It identifies content with file and never executes it.
+
+
+Exercise 4: recursive NUL-safe iteration and persistent counters
+================================================================
+$ ./lost_count.sh
+inside the loop: COUNT=1
+inside the loop: COUNT=2
+inside the loop: COUNT=3
+inside the loop: COUNT=4
+after the loop:  COUNT=0
+Exit code: 0
+$ ./kept_count.sh
+case/logs/auth.log: 60 lines
+case/logs/firewall.log: 5 lines
+case/logs/access.log: 80 lines
+case/nested/archive/old.log: 1 lines
+after the loop: COUNT=4
+Total lines: 146
+Exit code: 0
+The find scan includes four logs and 146 newline bytes in total, adding case/nested/archive/old.log to the three immediate log files scanned in Lab 9. In lost_count the pipeline loop changes a subshell copy of COUNT, so the parent stays at 0. Process substitution feeds data without moving the loop into a subshell, so kept_count retains both the count and line total. The demonstration explicitly disables Bash lastpipe; that optional setting can otherwise change pipeline behavior in some shells.
+$ ./admin_files.sh
+case/logs/auth.log mentions admin (17 line(s))
+case/logs/access.log mentions admin (13 line(s))
+case/evidence/notes.txt mentions admin (1 line(s))
+case/backups/users.old mentions admin (1 line(s))
+case/triage-report.txt mentions admin (1 line(s))
+Exit code: 0
+$ ./admin_files.sh password
+case/logs/auth.log mentions password (60 line(s))
+case/evidence/passwords.txt mentions password (1 line(s))
+case/triage-report.txt mentions password (1 line(s))
+Exit code: 0
+Evidence file(s) containing the literal word password, apart from logs: case/evidence/passwords.txt. This search reports filenames and counts only, not their contents.
+
+
+Exercise 5: reproduce missing-newline, subshell and read bugs
+=============================================================
+Original missing-final-newline loop:
+[first]
+[second]
+Fixed missing-final-newline loop:
+[first]
+[second]
+[third]
+Different producer, same lost-counter problem:
+after grep pipeline: COUNT=0
+Broken read without IFS= or -r:
+[pathname]
+Correct read preserves surrounding spaces and backslash:
+[  path\name  ]
+An extra separator mismatch was reproduced: find -print with read -d "" processes zero records because newlines are not NUL separators. The final scripts pair -print0/-Z with -d "".
+
+
+Investigation challenge: saved report, exit status and cap verification
+=======================================================================
+$ ./scan_all.sh > scan_report.txt
+$ echo "Exit code: $?"
+Exit code: 1
+
+The final report says Investigation required: yes, so exit 1 correctly signals matches. Four logs were scanned:
+case/logs/access.log: 2 full matches, 2 reported; early break=no.
+case/logs/auth.log: 3 full matches, 3 reported; early break=yes.
+case/logs/firewall.log: 3 full matches, 3 reported; early break=yes.
+case/nested/archive/old.log: 0 full matches, 0 reported; early break=no.
+Early break triggers for auth.log and firewall.log. check_iocs.sh confirms exactly three matches in each, so this fixture loses no matching indicators, even though some nonmatching IOC entries after the third hit are left untested. A synthetic four-match log was also checked: scan_all stops at three while check_iocs finds four, confirming the cap is a lower bound if more indicators exist.
+The archived log contributes zero IOC matches, so the recursive total is still eight, equal to the three-log Lab 9 result. Counts refer to matching indicator entries per log, not event counts or globally unique indicators.
+A meaningful exit code lets a nightly scheduler raise an investigation alert automatically, while treating processing errors separately from a completed scan.
+
+
+Validation
+==========
+100 subprocess checks passed, including expected alert/error demonstrations. Checks covered all nine exercise scripts, recursive totals, uncapped-versus-capped matching, no-match/alert/error exits, filename whitespace/newlines/backslashes, last records without newlines, CRLF, literal multiword indicators, retry limits/EOF/traversal, unreadable input, and propagation of find/grep traversal errors. Saved scan output was reproduced exactly. case/intel match their sources and the worksheet matches its attachment. No evidence was changed or executed, and password values are not reproduced in this report.

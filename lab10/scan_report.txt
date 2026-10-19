@@ -1,0 +1,33 @@
+File: case/logs/auth.log
+  MATCH: 203.0.113.10
+  MATCH: 198.51.100.24
+  MATCH: 203.0.113.200
+  Stopped early after 3 IOC matches.
+  Total lines: 60
+  Failed logins: 45
+  IOC matches: 3
+
+File: case/logs/firewall.log
+  MATCH: 203.0.113.10
+  MATCH: 198.51.100.24
+  MATCH: 203.0.113.200
+  Stopped early after 3 IOC matches.
+  Total lines: 5
+  Failed logins: 0
+  IOC matches: 3
+
+File: case/logs/access.log
+  MATCH: 203.0.113.10
+  MATCH: 198.51.100.24
+  Total lines: 80
+  Failed logins: 0
+  IOC matches: 2
+
+File: case/nested/archive/old.log
+  Total lines: 1
+  Failed logins: 0
+  IOC matches: 0
+
+Logs scanned: 4
+Total IOC matches (capped at 3 per log): 8
+Investigation required: yes

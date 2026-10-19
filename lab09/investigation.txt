@@ -1,0 +1,240 @@
+Layout and running the lab
+==========================
+Run all commands from lab09. The original worksheet is lab09.md in this folder. The worksheet names lab04-data and lab03-data; this checkout instead uses lab04 and root-level iocs.txt/users.csv. case and intel are unchanged copies of those sources. The 14 exercise scripts share lib/common.sh for input guards, grep status handling and one consistent extension/type policy. No collected script or evidence executable was run.
+The scripts use for loops for file lists, indicators, attackers and running totals. Indicators are loaded into an array by line so that a future value containing spaces is preserved. Exit 1 means unexpected arguments; exit 2 indicates an input or processing error. A grep no-match result is handled separately from a read/search failure.
+
+Exercise 1: basic loops, totals and glob depth
+==============================================
+$ ./check_all_files.sh
+Checking case/logs/auth.log...
+  exists, 60 lines
+Checking case/logs/access.log...
+  exists, 80 lines
+Checking case/logs/firewall.log...
+  exists, 5 lines
+Checking case/logs/missing.log...
+  MISSING
+Exit code: 0
+$ bash -c source ./lib/common.sh; for LOGFILE in case/logs/*.log; do [ -f "$LOGFILE" ] || continue; require_file "$LOGFILE"; COUNT=$(count_lines -F -- "Accepted password" "$LOGFILE") || exit 2; echo "$LOGFILE: $COUNT accepted logins"; done
+case/logs/access.log: 0 accepted logins
+case/logs/auth.log: 15 accepted logins
+case/logs/firewall.log: 0 accepted logins
+Exit code: 0
+$ bash -c for i in {1..5}; do echo "Attempt $i"; done
+Attempt 1
+Attempt 2
+Attempt 3
+Attempt 4
+Attempt 5
+Exit code: 0
+$ ./failed_totals.sh
+case/logs/access.log: 0 failed logins
+case/logs/auth.log: 45 failed logins
+case/logs/firewall.log: 0 failed logins
+TOTAL: 45
+Exit code: 0
+The total equals auth.log alone: only that file contains SSH Failed password records. Web and firewall data use other event formats, so zero is not evidence of no hostile activity. A literal list is fixed when the script is written, whereas a glob expands to matching names at execution; a future fourth log is included by the glob automatically but is absent from the fixed literal list.
+$ ./port_report.sh
+Configured ports and debug settings:
+case/configs/app.conf: port 8080; debug false
+case/configs/backup.conf: port (none); debug (none)
+case/configs/server.conf: port 443; debug (none)
+case/backups/config.old: port 80; debug true
+Exit code: 0
+$ ./numbered_list.sh
+File #1: case/configs/app.conf
+File #2: case/configs/backup.conf
+File #3: case/configs/server.conf
+File #4: case/logs/access.log
+File #5: case/logs/auth.log
+File #6: case/logs/firewall.log
+Exit code: 0
+The extended port report includes debug and the old backup. app.conf uses port 8080/debug=false, server.conf port 443/no debug key, backup.conf no port or debug key, and backups/config.old port 80/debug=true.
+$ bash -c for FILE in case/*/*.log case/*/*/*.log; do [ -f "$FILE" ] || continue; echo "$FILE"; done
+case/logs/access.log
+case/logs/auth.log
+case/logs/firewall.log
+case/nested/archive/old.log
+Exit code: 0
+case/logs/*.log does not descend recursively. The two-depth patterns add case/nested/archive/old.log, yielding four log paths instead of three.
+
+
+Exercise 2: nested sweeps, correlation and IOC gaps
+===================================================
+$ ./sweep_auth.sh
+MATCH   : 203.0.113.10 found in auth.log
+MATCH   : 198.51.100.24 found in auth.log
+no match: malicious.example
+no match: bad-login.example
+no match: 44d88612fea8a8f36de82e1278abb02f
+MATCH   : 203.0.113.200 found in auth.log
+no match: suspicious.example
+Exit code: 0
+$ ./sweep_all.sh
+=== case/logs/access.log ===
+  MATCH: 203.0.113.10 (21 lines)
+  MATCH: 198.51.100.24 (19 lines)
+=== case/logs/auth.log ===
+  MATCH: 203.0.113.10 (15 lines)
+  MATCH: 198.51.100.24 (14 lines)
+  MATCH: 203.0.113.200 (5 lines)
+=== case/logs/firewall.log ===
+  MATCH: 203.0.113.10 (1 lines)
+  MATCH: 198.51.100.24 (1 lines)
+  MATCH: 203.0.113.200 (1 lines)
+Exit code: 0
+$ ./correlate.sh
+203.0.113.10: seen in 3 log(s): access.log auth.log firewall.log
+198.51.100.24: seen in 3 log(s): access.log auth.log firewall.log
+malicious.example: seen in 0 log(s):
+bad-login.example: seen in 0 log(s):
+44d88612fea8a8f36de82e1278abb02f: seen in 0 log(s):
+203.0.113.200: seen in 2 log(s): auth.log firewall.log
+suspicious.example: seen in 0 log(s):
+Exit code: 0
+$ ./ioc_gaps.sh
+198.51.100.24 (14 failures): already in IOC list
+198.51.100.77 (8 failures): NOT in IOC list — candidate for new indicator
+203.0.113.10 (15 failures): already in IOC list
+203.0.113.15 (3 failures): NOT in IOC list — candidate for new indicator
+203.0.113.200 (5 failures): already in IOC list
+Exit code: 0
+$ ./web_gaps.sh
+192.168.1.20 (11 requests): NOT in IOC list — internal
+192.168.1.35 (7 requests): NOT in IOC list — internal
+198.51.100.24 (19 requests): already in IOC list
+198.51.100.99 (10 requests): NOT in IOC list — outside the internal 192.168/16 range
+203.0.113.10 (21 requests): already in IOC list
+203.0.113.77 (12 requests): NOT in IOC list — outside the internal 192.168/16 range
+Exit code: 0
+Auth IOC matches are 203.0.113.10, 198.51.100.24, 203.0.113.200.
+A substitution-based loop splits "malicious host" into two separate indicators, and unquoted substitution may also expand wildcard characters. This lab implementation preserves the whole line as one array item.
+Lab 8 comparison (matching lines):
+IP                 auth.log access.log firewall.log
+203.0.113.10             15         21            1
+198.51.100.24            14         19            1
+203.0.113.200             5          0            1
+The nested sweep agrees with all nine Lab 8 checks. 203.0.113.10 and 198.51.100.24 appear in all three logs; 203.0.113.200 appears in auth and firewall only. malicious.example, bad-login.example and suspicious.example are domain indicators absent from these log texts; the MD5 indicator is also absent as a literal log string. A hash needs comparison against computed file hashes; domain absence does not prove an IP was benign.
+SSH IOC gaps: 198.51.100.77 (8 failures), 203.0.113.15 (3 failures). They are candidates, not automatic proof: check repeat activity, source context, server/firewall timestamps, authorization for testing, and corroborating events before promoting them to operational indicators.
+Web clients missing from the IOC list: 192.168.1.20, 192.168.1.35, 198.51.100.99, 203.0.113.77. Outside the internal 192.168/16 range: 198.51.100.99, 203.0.113.77. Internal omissions need not be malicious; an IOC list is not an inventory of all clients.
+
+
+Exercise 3: hash baseline, tampering and integrity verification
+===============================================================
+$ ./hash_evidence.sh > baseline_hashes.txt
+4c25603189da855a2e0ce4704cceead19644a3378c15ce154773534be9e67040  case/evidence/archive.zip
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  case/evidence/empty.bin
+62d7693d527ce6e5cf4a4f54478b889fe3e01a144d09a0a0482ca512d4225b3a  case/evidence/image.png
+8ec8ceec9c70cf7c7934f6ed0832ea0609e9cff50d4f871cc8332223e5cf30cb  case/evidence/notes.txt
+eddfa3ed00f03f2000f32dc9df2c3c23705612880d60510ef862885969f9d44f  case/evidence/passwords.txt
+252c8b4f506eca38cf742a017bd56fa2a0079bd89dbf00e2db962c631be3f4e3  case/evidence/readme.md
+e1105562d3473531bf8157f2f95837c606bcfdca3b098026a2aceec4d3c783c0  case/evidence/suspicious.dat
+$ sha256sum -c baseline_hashes.txt
+case/evidence/archive.zip: OK
+case/evidence/empty.bin: OK
+case/evidence/image.png: OK
+case/evidence/notes.txt: OK
+case/evidence/passwords.txt: OK
+case/evidence/readme.md: OK
+case/evidence/suspicious.dat: OK
+Exit code: 0
+Disposable-copy tampering demonstration:
+$ cp -r case/evidence work_evidence
+$ for FILE in work_evidence/*; do sha256sum "$FILE"; done > work_baseline.txt
+$ echo tampered >> work_evidence/notes.txt
+$ for FILE in work_evidence/*; do sha256sum "$FILE"; done > work_current.txt
+$ diff work_baseline.txt work_current.txt
+4c4
+< 8ec8ceec9c70cf7c7934f6ed0832ea0609e9cff50d4f871cc8332223e5cf30cb  work_evidence/notes.txt
+---
+> 578d69352fcdfdd590bd8c4ea0f8ab02149405bd130d89bafd3276b63693a046  work_evidence/notes.txt
+Exit code: 1 (expected difference)
+$ sha256sum -c work_baseline.txt
+work_evidence/archive.zip: OK
+work_evidence/empty.bin: OK
+work_evidence/image.png: OK
+work_evidence/notes.txt: FAILED
+work_evidence/passwords.txt: OK
+work_evidence/readme.md: OK
+work_evidence/suspicious.dat: OK
+Exit code: 1 (expected mismatch)
+A same-size change was also tested in memory by changing the first byte: both versions have 64 bytes but different SHA-256 hashes. File size cannot detect such content changes. A hash verifies byte identity relative to the saved baseline; it does not independently prove that the original data was trustworthy.
+$ sha256sum /dev/null
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /dev/null
+Exit code: 0
+empty.bin and /dev/null hash identically because both supply an empty byte sequence. Empty files all share this hash regardless of filename.
+$ ./hash_ioc_check.sh
+no hash IOC match: case/evidence/archive.zip
+no hash IOC match: case/evidence/empty.bin
+no hash IOC match: case/evidence/image.png
+no hash IOC match: case/evidence/notes.txt
+no hash IOC match: case/evidence/passwords.txt
+no hash IOC match: case/evidence/readme.md
+no hash IOC match: case/evidence/suspicious.dat
+Exit code: 0
+No evidence file matches the supplied MD5 IOC. This means no hash match, not a clean bill of health; an exact known-file MD5 changes if the file bytes change (and MD5 is not suitable as a modern adversarial integrity guarantee). SHA-256 is used for the integrity baseline. Temporary work_evidence and both work hash listings were removed automatically; the real evidence remained untouched.
+
+
+Exercise 4: extension versus detected content
+=============================================
+Before adding the exercise extensions, the worksheet policy marks archive.zip, image.png, notes.txt, passwords.txt and readme.md OK; empty.bin and suspicious.dat are ?? because no expectations were defined. There are no !! results in that initial evidence-only policy.
+$ ./magic_check.sh
+OK case/evidence/archive.zip — Zip archive data, made by v2.0 UNIX, extract using at least v2.0, last modified Sep 20 2026 17:11:34, uncompressed size 18, method=deflate
+OK case/evidence/empty.bin — empty
+OK case/evidence/image.png — PNG image data, 1 x 1, 8-bit/color RGBA, non-interlaced
+OK case/evidence/notes.txt — ASCII text
+OK case/evidence/passwords.txt — ASCII text
+OK case/evidence/readme.md — ASCII text
+!! case/evidence/suspicious.dat — expected data, detected: ELF, unknown class 154
+OK case/scripts/check.sh — Bourne-Again shell script, ASCII text executable
+!! case/scripts/report.py — expected Python, detected: ASCII text
+!! case/scripts/scan.py — expected Python, detected: ASCII text
+Exit code: 0
+$ ./find_executables.sh
+EXECUTABLE CONTENT: case/evidence/suspicious.dat (ELF, unknown class 154)
+Exit code: 0
+$ bash -c head -c 4 case/evidence/suspicious.dat | od -c
+0000000 177   E   L   F
+0000004
+Exit code: 0
+ELF magic bytes are 0x7f 45 4c 46 (DEL followed by E L F). unknown class 154 is not a valid ELF32/ELF64 class and suggests malformed or synthetic/corrupted content, not a proven working program. It was inspected without execution.
+Final extension policy: PNG for .png; Zip for .zip; text for .txt/.md/.log; shell script for .sh; Python for .py; empty for a zero-byte .bin (otherwise generic data); generic data for .dat. The .bin/.dat policy is an exercise convention: these broad extensions do not inherently forbid executable data. The ELF signature and invalid header, rather than the generic suffix alone, justify review.
+The final !! files are suspicious.dat (ELF versus generic data), report.py and scan.py (file detects ASCII text rather than Python). The tiny Python examples have no shebang and are valid source despite file not identifying their language, so these are heuristic false positives. check.sh matches shell-script content, regardless of its execution permission. Final policy covers every extension in the fixtures, leaving no ?? results.
+
+
+Exercise 5: reproduce and fix loop mistakes
+===========================================
+Double-zero demonstration:
+[0
+0]
+Worksheet fix:
+[0]
+Using the two-line value in arithmetic fails with syntax error. The final shared count_lines helper preserves grep output 0 on exit 1, and propagates statuses above 1 instead of suppressing real read errors with || true.
+No-match glob trap:
+Found: case/logs/*.xyz
+Adding [ -f "$FILE" ] || continue prints nothing.
+Additional broken-copy demonstration: resetting TOTAL=0 inside each iteration yields 0 because the final firewall.log has no Failed password lines. Initializing once outside the loop produces the correct total 45.
+Baseline paths are relative to lab09. Verifying from the repository root was also tested and failed with missing paths, while the same baseline passed from lab09. Always verify from the directory where relative baseline paths resolve.
+
+
+Investigation challenge: survey results and conclusions
+=======================================================
+$ ./file_survey.sh > file_survey_report.txt
+Exit code: 0
+The saved report was validated against actual bytes, SHA-256 hashes and independently calculated indicator counts for all 13 files.
+
+Log            Distinct indicators   Indicator lines
+access.log                       2                40
+auth.log                         3                34
+firewall.log                     3                 3
+auth.log and firewall.log tie for most distinct indicators (3 each); access.log has the most indicator lines (40). Distinct indicators measures breadth, while line counts measure repeated appearances. The report totals are 8 indicator/log pairs, covering 3 globally distinct IOC values, and 77 per-indicator matching lines. One physical line containing several IOC values can contribute more than once to the latter sum.
+Flagged: case/evidence/suspicious.dat, case/scripts/report.py, case/scripts/scan.py. The first is malformed ELF content under the exercise data policy; the Python files are heuristic type-detection limitations.
+case/nested/archive/old.log is omitted because the survey globs explicitly cover only immediate entries of evidence, scripts and logs. A new case/logs/vpn.log would be included automatically without editing the script; it was verified using a temporary fixture copy. Hidden files would require additional glob settings or explicit handling.
+
+Attack summary (four sentences):
+203.0.113.10, 198.51.100.24, 198.51.100.77, 203.0.113.200 and 203.0.113.15 generated failed SSH password events, including two sources missing from the supplied IOC list. The first two IOC addresses appear in SSH, web and firewall logs, while 203.0.113.200 has a recorded firewall block for RDP (port 3389) and SSH authentication attempts. The workstation contains plaintext credential evidence and malformed ELF-signature content named suspicious.dat; neither the ELF nor any collected script was executed. These observations support follow-up on credential exposure, service-specific blocking and IOC coverage, but do not prove successful compromise or that every type mismatch is malicious.
+
+
+Validation
+==========
+88 subprocess checks passed, including the expected failures documented above. Validation covered all 14 exercise scripts, Bash syntax, all nine Lab 8 comparisons, real baseline verification, copy-only tampering detection, metadata and report arithmetic, future-file discovery, whitespace paths and indicators, unreadable/missing inputs, and repeatable outputs. Evidence and intel match their sources; neither was altered. Password values are omitted from the report. Baseline verification confirms agreement with this newly created baseline, not provenance before collection.

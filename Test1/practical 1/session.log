@@ -1,0 +1,445 @@
+Script started on 2026-11-02 11:20:19+00:00 [COMMAND="python3 /tmp/complete_test1.py" <not executed on terminal>]
+
+A1
+$ find exam-data -type f | wc -l
+28
+Exit code: 0
+
+A2
+$ find exam-data -type f -empty
+exam-data/case/evidence/empty.bin
+Exit code: 0
+
+A3
+$ find exam-data/case/evidence -maxdepth 1 -type f -exec file -- {} +
+exam-data/case/evidence/empty.bin:      empty
+exam-data/case/evidence/image.png:      PNG image data, 1 x 1, 8-bit/color RGBA, non-interlaced
+exam-data/case/evidence/passwords.txt:  ASCII text
+exam-data/case/evidence/notes.txt:      ASCII text
+exam-data/case/evidence/archive.zip:    Zip archive data, made by v2.0 UNIX, extract using at least v2.0, last modified Sep 20 2026 17:11:34, uncompressed size 18, method=deflate
+exam-data/case/evidence/readme.md:      ASCII text
+exam-data/case/evidence/suspicious.dat: ELF, unknown class 154
+Exit code: 0
+
+A4
+$ grep -cF 'Failed password' exam-data/case/logs/auth.log
+45
+Exit code: 0
+
+A5
+$ awk '/Failed password/ {for(i=1;i<NF;i++) if($i=="from") {print $(i+1); break}}' exam-data/case/logs/auth.log | sort | uniq -c | sort -k1,1nr -k2,2 | head -n 3
+     15 203.0.113.10
+     14 198.51.100.24
+      8 198.51.100.77
+Exit code: 0
+
+A6
+$ awk '{print $9}' exam-data/case/logs/access.log | sort | uniq -c | sort -k1,1nr -k2,2
+     44 200
+     15 403
+     11 404
+      6 302
+      4 500
+Exit code: 0
+
+A7
+$ awk -F, 'NR>1 && $3=="disabled" {print $1}' exam-data/intel/users.csv
+david
+frank
+heidi
+Exit code: 0
+
+A8
+$ find exam-data -type f -name '*.log' -print0 | xargs -0 -r wc -l --
+  220 exam-data/intel/access.log
+  184 exam-data/intel/auth.log
+    5 exam-data/case/logs/firewall.log
+   80 exam-data/case/logs/access.log
+   60 exam-data/case/logs/auth.log
+    1 exam-data/case/nested/archive/old.log
+  550 total
+Exit code: 0
+
+B1 — normal
+$ ./logsummary.sh exam-data/case/logs/auth.log
+File     : exam-data/case/logs/auth.log
+Lines    : 60
+Failed   : 45
+Accepted : 15
+First    : Sep 20 08:00:20
+Last     : Sep 20 08:46:20
+Exit code: 0
+
+B1 — empty
+$ ./logsummary.sh exam-data/case/evidence/empty.bin
+Error: empty file: exam-data/case/evidence/empty.bin
+Exit code: 3
+
+B1 — missing
+$ ./logsummary.sh nonexistent-file
+Error: file not found: nonexistent-file
+Exit code: 2
+
+B1 — no arguments
+$ ./logsummary.sh 
+Usage: ./logsummary.sh <logfile>
+Exit code: 1
+
+B2 — 203.0.113.10
+$ ./check_ip.sh 203.0.113.10
+IP : 203.0.113.10
+Failed : 15
+Accepted : 0
+Risk : HIGH
+IOC : yes
+BLOCK 203.0.113.10 -> 10.0.0.10:22
+Exit code: 0
+
+B2 — 198.51.100.77
+$ ./check_ip.sh 198.51.100.77
+IP : 198.51.100.77
+Failed : 8
+Accepted : 0
+Risk : MEDIUM
+IOC : no
+Firewall : no entries
+Exit code: 0
+
+B2 — 192.168.1.20
+$ ./check_ip.sh 192.168.1.20
+IP : 192.168.1.20
+Failed : 0
+Accepted : 6
+Risk : NONE
+IOC : no
+ALLOW 192.168.1.20 -> 10.0.0.10:443
+Exit code: 0
+
+B2 — 203.0.113.1
+$ ./check_ip.sh 203.0.113.1
+IP : 203.0.113.1
+Failed : 0
+Accepted : 0
+Risk : NONE
+IOC : no
+Firewall : no entries
+Exit code: 3
+
+B2 — abc
+$ ./check_ip.sh abc
+Usage: ./check_ip.sh <IPv4 address>
+Exit code: 1
+
+B3
+$ ./sweep.sh
+203.0.113.10 | access.log | lines: 21
+203.0.113.10 | auth.log | lines: 15
+203.0.113.10 | firewall.log | lines: 1
+203.0.113.10 | logs: 3
+198.51.100.24 | access.log | lines: 19
+198.51.100.24 | auth.log | lines: 14
+198.51.100.24 | firewall.log | lines: 1
+198.51.100.24 | logs: 3
+malicious.example | logs: 0
+bad-login.example | logs: 0
+44d88612fea8a8f36de82e1278abb02f | logs: 0
+203.0.113.200 | auth.log | lines: 5
+203.0.113.200 | firewall.log | lines: 1
+203.0.113.200 | logs: 2
+suspicious.example | logs: 0
+Total matching lines: 77
+clean : exam-data/case/evidence/archive.zip
+clean : exam-data/case/evidence/empty.bin
+clean : exam-data/case/evidence/image.png
+clean : exam-data/case/evidence/notes.txt
+clean : exam-data/case/evidence/passwords.txt
+clean : exam-data/case/evidence/readme.md
+clean : exam-data/case/evidence/suspicious.dat
+Exit code: 0
+
+B3(q)
+$ md5sum exam-data/case/evidence/empty.bin
+d41d8cd98f00b204e9800998ecf8427e  exam-data/case/evidence/empty.bin
+Exit code: 0
+
+B4 — inspect CSV line endings
+$ cat -A exam-data/intel/users.csv
+username,role,status,department^M$
+alice,student,active,Computing^M$
+bob,student,active,Computing^M$
+charlie,staff,active,IT^M$
+david,student,disabled,Computing^M$
+eve,staff,active,Security^M$
+frank,student,disabled,Computing^M$
+grace,contractor,active,Facilities^M$
+heidi,staff,disabled,Finance^M$
+Exit code: 0
+
+B4 — accounts
+$ ./accounts.sh
+alice | student | active | Computing | logins: 6
+bob | student | active | Computing | logins: 5
+charlie | staff | active | IT | logins: 1
+david | student | disabled | Computing | logins: 0
+eve | staff | active | Security | logins: 3
+frank | student | disabled | Computing | logins: 0
+grace | contractor | active | Facilities | logins: 0
+heidi | staff | disabled | Finance | logins: 0
+Active accounts: 5
+Disabled accounts: 3
+Exit code: 0
+
+B4 — find logs
+$ ./find_logs.sh
+exam-data/intel/access.log | lines: 220
+exam-data/intel/auth.log | lines: 184
+exam-data/case/logs/firewall.log | lines: 5
+exam-data/case/logs/access.log | lines: 80
+exam-data/case/logs/auth.log | lines: 60
+exam-data/case/nested/archive/old.log | lines: 1
+Logs found: 6
+Total lines: 550
+Exit code: 0
+
+B4(q) — targeted users
+$ awk '/Failed password/ {for(i=1;i<NF;i++) if($i=="for") {if($(i+1)=="invalid" && $(i+2)=="user") print $(i+3); else print $(i+1); break}}' exam-data/case/logs/auth.log | sort | uniq -c | sort -k1,1nr -k2,2
+     17 admin
+     10 root
+      7 guest
+      4 backup
+      4 test
+      3 oracle
+Exit code: 0
+
+B4(q) — check root membership
+$ awk -F, 'NR>1 && $1=="root" {found=1; print} END {if(!found) print "root is not listed in users.csv"}' exam-data/intel/users.csv
+root is not listed in users.csv
+Exit code: 0
+Traceback (most recent call last):
+  File "/tmp/complete_test1.py", line 43, in <module>
+    assert results['A1'].strip()=='29'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+Script done on 2026-11-02 11:20:20+00:00 [COMMAND_EXIT_CODE="1"]
+Script started on 2026-11-02 11:20:24+00:00 [COMMAND="python3 /tmp/complete_test1.py" <not executed on terminal>]
+
+A1
+$ find exam-data -type f | wc -l
+28
+Exit code: 0
+
+A2
+$ find exam-data -type f -empty
+exam-data/case/evidence/empty.bin
+Exit code: 0
+
+A3
+$ find exam-data/case/evidence -maxdepth 1 -type f -exec file -- {} +
+exam-data/case/evidence/empty.bin:      empty
+exam-data/case/evidence/image.png:      PNG image data, 1 x 1, 8-bit/color RGBA, non-interlaced
+exam-data/case/evidence/passwords.txt:  ASCII text
+exam-data/case/evidence/notes.txt:      ASCII text
+exam-data/case/evidence/archive.zip:    Zip archive data, made by v2.0 UNIX, extract using at least v2.0, last modified Sep 20 2026 17:11:34, uncompressed size 18, method=deflate
+exam-data/case/evidence/readme.md:      ASCII text
+exam-data/case/evidence/suspicious.dat: ELF, unknown class 154
+Exit code: 0
+
+A4
+$ grep -cF 'Failed password' exam-data/case/logs/auth.log
+45
+Exit code: 0
+
+A5
+$ awk '/Failed password/ {for(i=1;i<NF;i++) if($i=="from") {print $(i+1); break}}' exam-data/case/logs/auth.log | sort | uniq -c | sort -k1,1nr -k2,2 | head -n 3
+     15 203.0.113.10
+     14 198.51.100.24
+      8 198.51.100.77
+Exit code: 0
+
+A6
+$ awk '{print $9}' exam-data/case/logs/access.log | sort | uniq -c | sort -k1,1nr -k2,2
+     44 200
+     15 403
+     11 404
+      6 302
+      4 500
+Exit code: 0
+
+A7
+$ awk -F, 'NR>1 && $3=="disabled" {print $1}' exam-data/intel/users.csv
+david
+frank
+heidi
+Exit code: 0
+
+A8
+$ find exam-data -type f -name '*.log' -print0 | xargs -0 -r wc -l --
+  220 exam-data/intel/access.log
+  184 exam-data/intel/auth.log
+    5 exam-data/case/logs/firewall.log
+   80 exam-data/case/logs/access.log
+   60 exam-data/case/logs/auth.log
+    1 exam-data/case/nested/archive/old.log
+  550 total
+Exit code: 0
+
+B1 — normal
+$ ./logsummary.sh exam-data/case/logs/auth.log
+File     : exam-data/case/logs/auth.log
+Lines    : 60
+Failed   : 45
+Accepted : 15
+First    : Sep 20 08:00:20
+Last     : Sep 20 08:46:20
+Exit code: 0
+
+B1 — empty
+$ ./logsummary.sh exam-data/case/evidence/empty.bin
+Error: empty file: exam-data/case/evidence/empty.bin
+Exit code: 3
+
+B1 — missing
+$ ./logsummary.sh nonexistent-file
+Error: file not found: nonexistent-file
+Exit code: 2
+
+B1 — no arguments
+$ ./logsummary.sh 
+Usage: ./logsummary.sh <logfile>
+Exit code: 1
+
+B2 — 203.0.113.10
+$ ./check_ip.sh 203.0.113.10
+IP : 203.0.113.10
+Failed : 15
+Accepted : 0
+Risk : HIGH
+IOC : yes
+BLOCK 203.0.113.10 -> 10.0.0.10:22
+Exit code: 0
+
+B2 — 198.51.100.77
+$ ./check_ip.sh 198.51.100.77
+IP : 198.51.100.77
+Failed : 8
+Accepted : 0
+Risk : MEDIUM
+IOC : no
+Firewall : no entries
+Exit code: 0
+
+B2 — 192.168.1.20
+$ ./check_ip.sh 192.168.1.20
+IP : 192.168.1.20
+Failed : 0
+Accepted : 6
+Risk : NONE
+IOC : no
+ALLOW 192.168.1.20 -> 10.0.0.10:443
+Exit code: 0
+
+B2 — 203.0.113.1
+$ ./check_ip.sh 203.0.113.1
+IP : 203.0.113.1
+Failed : 0
+Accepted : 0
+Risk : NONE
+IOC : no
+Firewall : no entries
+Exit code: 3
+
+B2 — abc
+$ ./check_ip.sh abc
+Usage: ./check_ip.sh <IPv4 address>
+Exit code: 1
+
+B3
+$ ./sweep.sh
+203.0.113.10 | access.log | lines: 21
+203.0.113.10 | auth.log | lines: 15
+203.0.113.10 | firewall.log | lines: 1
+203.0.113.10 | logs: 3
+198.51.100.24 | access.log | lines: 19
+198.51.100.24 | auth.log | lines: 14
+198.51.100.24 | firewall.log | lines: 1
+198.51.100.24 | logs: 3
+malicious.example | logs: 0
+bad-login.example | logs: 0
+44d88612fea8a8f36de82e1278abb02f | logs: 0
+203.0.113.200 | auth.log | lines: 5
+203.0.113.200 | firewall.log | lines: 1
+203.0.113.200 | logs: 2
+suspicious.example | logs: 0
+Total matching lines: 77
+clean : exam-data/case/evidence/archive.zip
+clean : exam-data/case/evidence/empty.bin
+clean : exam-data/case/evidence/image.png
+clean : exam-data/case/evidence/notes.txt
+clean : exam-data/case/evidence/passwords.txt
+clean : exam-data/case/evidence/readme.md
+clean : exam-data/case/evidence/suspicious.dat
+Exit code: 0
+
+B3(q)
+$ md5sum exam-data/case/evidence/empty.bin
+d41d8cd98f00b204e9800998ecf8427e  exam-data/case/evidence/empty.bin
+Exit code: 0
+
+B4 — inspect CSV line endings
+$ cat -A exam-data/intel/users.csv
+username,role,status,department^M$
+alice,student,active,Computing^M$
+bob,student,active,Computing^M$
+charlie,staff,active,IT^M$
+david,student,disabled,Computing^M$
+eve,staff,active,Security^M$
+frank,student,disabled,Computing^M$
+grace,contractor,active,Facilities^M$
+heidi,staff,disabled,Finance^M$
+Exit code: 0
+
+B4 — accounts
+$ ./accounts.sh
+alice | student | active | Computing | logins: 6
+bob | student | active | Computing | logins: 5
+charlie | staff | active | IT | logins: 1
+david | student | disabled | Computing | logins: 0
+eve | staff | active | Security | logins: 3
+frank | student | disabled | Computing | logins: 0
+grace | contractor | active | Facilities | logins: 0
+heidi | staff | disabled | Finance | logins: 0
+Active accounts: 5
+Disabled accounts: 3
+Exit code: 0
+
+B4 — find logs
+$ ./find_logs.sh
+exam-data/intel/access.log | lines: 220
+exam-data/intel/auth.log | lines: 184
+exam-data/case/logs/firewall.log | lines: 5
+exam-data/case/logs/access.log | lines: 80
+exam-data/case/logs/auth.log | lines: 60
+exam-data/case/nested/archive/old.log | lines: 1
+Logs found: 6
+Total lines: 550
+Exit code: 0
+
+B4(q) — targeted users
+$ awk '/Failed password/ {for(i=1;i<NF;i++) if($i=="for") {if($(i+1)=="invalid" && $(i+2)=="user") print $(i+3); else print $(i+1); break}}' exam-data/case/logs/auth.log | sort | uniq -c | sort -k1,1nr -k2,2
+     17 admin
+     10 root
+      7 guest
+      4 backup
+      4 test
+      3 oracle
+Exit code: 0
+
+B4(q) — check admin membership
+$ awk -F, 'NR>1 && $1=="admin" {found=1; print} END {if(!found) print "admin is not listed in users.csv"}' exam-data/intel/users.csv
+admin is not listed in users.csv
+Exit code: 0
+
+PASS: independent totals, expected script results, syntax, executable modes, and unchanged exam-data.
+
+Script done on 2026-11-02 11:20:24+00:00 [COMMAND_EXIT_CODE="0"]
